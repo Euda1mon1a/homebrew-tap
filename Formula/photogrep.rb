@@ -3,8 +3,8 @@ class Photogrep < Formula
 
   desc "Search Apple Photos by what is in the picture and find where an image came from"
   homepage "https://github.com/Euda1mon1a/photogrep"
-  url "https://files.pythonhosted.org/packages/f5/65/84384c4a5f42c4f00c50c2f5d9412a36b6c8ab63e076e12504eb33042386/photogrep-0.1.0.tar.gz"
-  sha256 "8904f4f056d744f7633e642d1b6f7245ae7861c988ed11ed35586fcb0f7bcce7"
+  url "https://files.pythonhosted.org/packages/08/87/11e4f80741f55fb84b9247bd8376a643c3a35c7c9b208b2829d7bff4f884/photogrep-0.1.1.tar.gz"
+  sha256 "b28747e151369301c34d7df48f07cbc094395964e5c7e101daff1f07814cf9bc"
   license "MIT"
 
   depends_on "pkgconf" => :build
@@ -25,7 +25,8 @@ class Photogrep < Formula
 
   test do
     assert_match "photogrep #{version}", shell_output("#{bin}/photogrep --version")
-    output = shell_output("#{bin}/photogrep search --library #{testpath}/none.photoslibrary 2>&1", 1)
+    # exit status 2 is an error; 1 would mean "nothing found"
+    output = shell_output("#{bin}/photogrep search --library #{testpath}/none.photoslibrary 2>&1", 2)
     assert_match "no Photos library", output
     system libexec/"bin/python", "-c", "import numpy, PIL, pillow_heif, photogrep.match"
   end
