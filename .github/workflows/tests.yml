@@ -5,11 +5,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   formula:
     runs-on: macos-latest
     steps:
-      - uses: Homebrew/actions/setup-homebrew@main
+      - uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478  # main, 2026-09-25
       - run: brew trust --tap euda1mon1a/tap
       - run: brew install --build-from-source euda1mon1a/tap/photogrep
       - run: brew test euda1mon1a/tap/photogrep

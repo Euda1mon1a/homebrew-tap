@@ -1,57 +1,72 @@
 name: bump photogrep
 
-# Weekly: if PyPI has a newer photogrep, build and test it here, then open a pull request.
+# Weekly: if PyPI has a newer photogrep, build and test it, then open a pull request.
+# Only the last job can write to the repository, and it runs no downloaded code.
 on:
   schedule:
     - cron: "17 18 * * 1"
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  bump:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.latest.outputs.changed }}
+      version: ${{ steps.latest.outputs.version }}
+      url: ${{ steps.latest.outputs.url }}
+      sha256: ${{ steps.latest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: latest
+        run: python3 .github/scripts/bump_formula.py latest Formula/photogrep.rb >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: macos-latest
     steps:
-      - uses: Homebrew/actions/setup-homebrew@main
-      - name: Update the formula if PyPI is ahead
-        id: update
+      - uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478  # main, 2026-09-25
+      - env:
+          VERSION: ${{ needs.check.outputs.version }}
+          URL: ${{ needs.check.outputs.url }}
+          SHA256: ${{ needs.check.outputs.sha256 }}
         run: |
           tap="$(brew --repository euda1mon1a/tap)"
-          echo "tap=$tap" >> "$GITHUB_OUTPUT"
-          python3 - "$tap/Formula/photogrep.rb" >> "$GITHUB_OUTPUT" <<'PY'
-          import json, re, sys, urllib.request
-          path = sys.argv[1]
-          text = open(path).read()
-          current = re.search(r"photogrep-([0-9][^/]*)\.tar\.gz", text).group(1)
-          data = json.load(urllib.request.urlopen("https://pypi.org/pypi/photogrep/json"))
-          latest = data["info"]["version"]
-          if latest == current:
-              print("changed=false")
-              sys.exit(0)
-          sdist = next(u for u in data["urls"] if u["packagetype"] == "sdist")
-          text = re.sub(r'^  url ".*"$', f'  url "{sdist["url"]}"', text, count=1, flags=re.M)
-          text = re.sub(r'^  sha256 ".*"$', f'  sha256 "{sdist["digests"]["sha256"]}"', text, count=1, flags=re.M)
-          open(path, "w").write(text)
-          print(f"changed=true\nversion={latest}")
-          PY
-      - if: steps.update.outputs.changed == 'true'
-        run: |
+          python3 "$tap/.github/scripts/bump_formula.py" apply "$tap/Formula/photogrep.rb" "$VERSION" "$URL" "$SHA256"
           brew trust --tap euda1mon1a/tap
           brew install --build-from-source euda1mon1a/tap/photogrep
           brew test euda1mon1a/tap/photogrep
           brew audit --strict euda1mon1a/tap/photogrep
-      - if: steps.update.outputs.changed == 'true'
-        working-directory: ${{ steps.update.outputs.tap }}
-        env:
+
+  pull-request:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.update.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
+          URL: ${{ needs.check.outputs.url }}
+          SHA256: ${{ needs.check.outputs.sha256 }}
         run: |
+          branch="bump-photogrep-$VERSION"
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            echo "$branch already exists; its pull request is waiting"
+            exit 0
+          fi
+          python3 .github/scripts/bump_formula.py apply Formula/photogrep.rb "$VERSION" "$URL" "$SHA256"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "bump-photogrep-$VERSION"
+          git switch -c "$branch"
           git commit -am "photogrep $VERSION"
-          git push -u origin "bump-photogrep-$VERSION"
+          git push -u origin "$branch"
           gh pr create --title "photogrep $VERSION" \
             --body "Built and tested on macOS by the bump workflow. Merge to publish."
