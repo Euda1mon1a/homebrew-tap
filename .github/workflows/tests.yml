@@ -1,0 +1,25 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  formula:
+    runs-on: macos-latest
+    steps:
+      - uses: Homebrew/actions/setup-homebrew@main
+      - run: brew trust --tap euda1mon1a/tap
+      - run: brew install --build-from-source euda1mon1a/tap/photogrep
+      - run: brew test euda1mon1a/tap/photogrep
+      - run: brew audit --strict euda1mon1a/tap/photogrep
+
+  # The command the README gives users, against the published tap.
+  user-install:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: formula
+    runs-on: macos-latest
+    steps:
+      - run: brew install euda1mon1a/tap/photogrep
+      - run: photogrep --version

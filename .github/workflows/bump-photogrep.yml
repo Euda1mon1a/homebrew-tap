@@ -1,0 +1,57 @@
+name: bump photogrep
+
+# Weekly: if PyPI has a newer photogrep, build and test it here, then open a pull request.
+on:
+  schedule:
+    - cron: "17 18 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: macos-latest
+    steps:
+      - uses: Homebrew/actions/setup-homebrew@main
+      - name: Update the formula if PyPI is ahead
+        id: update
+        run: |
+          tap="$(brew --repository euda1mon1a/tap)"
+          echo "tap=$tap" >> "$GITHUB_OUTPUT"
+          python3 - "$tap/Formula/photogrep.rb" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, re, sys, urllib.request
+          path = sys.argv[1]
+          text = open(path).read()
+          current = re.search(r"photogrep-([0-9][^/]*)\.tar\.gz", text).group(1)
+          data = json.load(urllib.request.urlopen("https://pypi.org/pypi/photogrep/json"))
+          latest = data["info"]["version"]
+          if latest == current:
+              print("changed=false")
+              sys.exit(0)
+          sdist = next(u for u in data["urls"] if u["packagetype"] == "sdist")
+          text = re.sub(r'^  url ".*"$', f'  url "{sdist["url"]}"', text, count=1, flags=re.M)
+          text = re.sub(r'^  sha256 ".*"$', f'  sha256 "{sdist["digests"]["sha256"]}"', text, count=1, flags=re.M)
+          open(path, "w").write(text)
+          print(f"changed=true\nversion={latest}")
+          PY
+      - if: steps.update.outputs.changed == 'true'
+        run: |
+          brew trust --tap euda1mon1a/tap
+          brew install --build-from-source euda1mon1a/tap/photogrep
+          brew test euda1mon1a/tap/photogrep
+          brew audit --strict euda1mon1a/tap/photogrep
+      - if: steps.update.outputs.changed == 'true'
+        working-directory: ${{ steps.update.outputs.tap }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.update.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "bump-photogrep-$VERSION"
+          git commit -am "photogrep $VERSION"
+          git push -u origin "bump-photogrep-$VERSION"
+          gh pr create --title "photogrep $VERSION" \
+            --body "Built and tested on macOS by the bump workflow. Merge to publish."
