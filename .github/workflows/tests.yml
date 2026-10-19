@@ -11,18 +11,36 @@ permissions:
 jobs:
   formula:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - formula: photogrep
+            audit: --strict
+          # cac-sign installs the exact wheels its uv.lock pins (compiled ones included), which
+          # strict audit discourages; the normal audit still runs.
+          - formula: cac-sign
+            audit: ""
     steps:
       - uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478  # main, 2026-09-25
       - run: brew trust --tap euda1mon1a/tap
-      - run: brew install --build-from-source euda1mon1a/tap/photogrep
-      - run: brew test euda1mon1a/tap/photogrep
-      - run: brew audit --strict euda1mon1a/tap/photogrep
+      - run: brew install --build-from-source euda1mon1a/tap/${{ matrix.formula }}
+      - run: brew test euda1mon1a/tap/${{ matrix.formula }}
+      - run: brew audit ${{ matrix.audit }} euda1mon1a/tap/${{ matrix.formula }}
 
   # The command the README gives users, against the published tap.
   user-install:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: formula
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - formula: photogrep
+            check: photogrep --version
+          - formula: cac-sign
+            check: cac-sign --help
     steps:
-      - run: brew install euda1mon1a/tap/photogrep
-      - run: photogrep --version
+      - run: brew install euda1mon1a/tap/${{ matrix.formula }}
+      - run: ${{ matrix.check }}
