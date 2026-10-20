@@ -199,8 +199,9 @@ if from_source:
                   '    ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"\n'
                   "    from_source.each do |name|\n"
                   "      resource(name).stage do\n"
-                  f'        system "maturin", "build", "--release", "--locked", "--interpreter", "python{pyminor}",\n'
-                  '               "--out", wheels\n'
+                  "        # vtracer ships its Cargo.lock, so cargo builds the locked crate versions and checksums.\n"
+                  "        # Not --locked: newer cargo rewrites the lock file's format, which --locked refuses.\n"
+                  f'        system "maturin", "build", "--release", "--interpreter", "python{pyminor}", "--out", wheels\n'
                   "      end\n"
                   "    end\n")
 else:

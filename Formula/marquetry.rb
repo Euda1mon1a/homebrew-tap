@@ -90,8 +90,9 @@ class Marquetry < Formula
     ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"
     from_source.each do |name|
       resource(name).stage do
-        system "maturin", "build", "--release", "--locked", "--interpreter", "python3.14",
-               "--out", wheels
+        # vtracer ships its Cargo.lock, so cargo builds the locked crate versions and checksums.
+        # Not --locked: newer cargo rewrites the lock file's format, which --locked refuses.
+        system "maturin", "build", "--release", "--interpreter", "python3.14", "--out", wheels
       end
     end
     cp cached_download, wheels/File.basename(stable.url)
