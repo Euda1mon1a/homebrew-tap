@@ -37,6 +37,9 @@ class ObjectHealer < Formula
     cp cached_download, wheels/File.basename(stable.url)
     system "python3.14", "-m", "pip", "--python=#{venv.root}/bin/python", "install",
            "--no-deps", "--no-index", "--no-compile", *wheels.children
+    # Qt's SQL drivers link to databases that aren't installed (PostgreSQL, Mimer, ODBC), and
+    # object-healer doesn't use QtSql, so they go rather than fail the linkage audit.
+    rm_r libexec.glob("lib/python*/site-packages/PyQt6/Qt6/plugins/sqldrivers")
     bin.install_symlink libexec/"bin/object-healer"
   end
 
