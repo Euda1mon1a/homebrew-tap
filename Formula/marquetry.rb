@@ -90,7 +90,8 @@ class Marquetry < Formula
     ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"
     from_source.each do |name|
       resource(name).stage do
-        system "maturin", "build", "--release", "--interpreter", "python3.14", "--out", wheels
+        system "maturin", "build", "--release", "--locked", "--interpreter", "python3.14",
+               "--out", wheels
       end
     end
     cp cached_download, wheels/File.basename(stable.url)

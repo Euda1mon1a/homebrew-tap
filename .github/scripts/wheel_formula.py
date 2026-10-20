@@ -199,7 +199,8 @@ if from_source:
                   '    ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"\n'
                   "    from_source.each do |name|\n"
                   "      resource(name).stage do\n"
-                  f'        system "maturin", "build", "--release", "--interpreter", "python{pyminor}", "--out", wheels\n'
+                  f'        system "maturin", "build", "--release", "--locked", "--interpreter", "python{pyminor}",\n'
+                  '               "--out", wheels\n'
                   "      end\n"
                   "    end\n")
 else:
