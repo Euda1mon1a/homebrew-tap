@@ -199,13 +199,27 @@ if from_source:
                   '    ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"\n'
                   "    from_source.each do |name|\n"
                   "      resource(name).stage do\n"
-                  "        # vtracer ships its Cargo.lock, so cargo builds the locked crate versions and checksums.\n"
-                  "        # Not --locked: newer cargo rewrites the lock file's format, which --locked refuses.\n"
+                  "        # --locked fails here: the shipped Cargo.lock also covers upstream's web-app crates,\n"
+                  "        # which cargo prunes from this workspace. So check instead that every crate it\n"
+                  "        # builds is in the shipped lock with the same version and checksum.\n"
+                  '        shipped = locked_crates(Pathname("Cargo.lock"))\n'
                   f'        system "maturin", "build", "--release", "--interpreter", "python{pyminor}", "--out", wheels\n'
+                  '        resolved = locked_crates(Pathname("Cargo.lock"))\n'
+                  '        extra = resolved - shipped\n'
+                  '        odie "#{name}: crates not in its Cargo.lock: #{extra.map(&:first).join(", ")}" unless extra.empty?\n'
                   "      end\n"
                   "    end\n")
+    helper_block = """
+  # [name, version, checksum] for every package in a Cargo.lock, whatever its format version.
+  def locked_crates(lock)
+    lock.read.split("[[package]]").drop(1).map do |pkg|
+      %w[name version checksum].map { |k| pkg[/^#{k} = "([^"]*)"/, 1] }
+    end.sort
+  end
+"""
 else:
     copy_block = "    resources.each { |r| cp r.cached_download, wheels/File.basename(r.url) }\n"
+    helper_block = ""
 caveats = "\n" + cfg["caveats"] if cfg["caveats"] else ""
 
 formula = f'''class {cfg["class"]} < Formula
@@ -230,7 +244,7 @@ formula = f'''class {cfg["class"]} < Formula
     system "python{pyminor}", "-m", "pip", "--python=#{{venv.root}}/bin/python", "install",
            "--no-deps", "--no-index", "--no-compile", *wheels.children
 {cfg["link"]}  end
-{caveats}
+{helper_block}{caveats}
 {cfg["test"]}end
 '''
 open(out, "w").write(formula)

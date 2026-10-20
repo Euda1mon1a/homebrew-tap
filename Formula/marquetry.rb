@@ -90,9 +90,14 @@ class Marquetry < Formula
     ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"
     from_source.each do |name|
       resource(name).stage do
-        # vtracer ships its Cargo.lock, so cargo builds the locked crate versions and checksums.
-        # Not --locked: newer cargo rewrites the lock file's format, which --locked refuses.
+        # --locked fails here: the shipped Cargo.lock also covers upstream's web-app crates,
+        # which cargo prunes from this workspace. So check instead that every crate it
+        # builds is in the shipped lock with the same version and checksum.
+        shipped = locked_crates(Pathname("Cargo.lock"))
         system "maturin", "build", "--release", "--interpreter", "python3.14", "--out", wheels
+        resolved = locked_crates(Pathname("Cargo.lock"))
+        extra = resolved - shipped
+        odie "#{name}: crates not in its Cargo.lock: #{extra.map(&:first).join(", ")}" unless extra.empty?
       end
     end
     cp cached_download, wheels/File.basename(stable.url)
@@ -102,6 +107,13 @@ class Marquetry < Formula
     # marquetry doesn't use QtSql, so they go rather than fail the linkage audit.
     rm_r libexec.glob("lib/python*/site-packages/PyQt6/Qt6/plugins/sqldrivers")
     bin.install_symlink libexec/"bin/marquetry"
+  end
+
+  # [name, version, checksum] for every package in a Cargo.lock, whatever its format version.
+  def locked_crates(lock)
+    lock.read.split("[[package]]").drop(1).map do |pkg|
+      %w[name version checksum].map { |k| pkg[/^#{k} = "([^"]*)"/, 1] }
+    end.sort
   end
 
   test do
