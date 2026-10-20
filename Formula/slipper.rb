@@ -2,8 +2,7 @@ class Slipper < Formula
   desc "Turn a local web app into a Mac app you keep in the Dock"
   homepage "https://github.com/Euda1mon1a/slipper"
   url "https://github.com/Euda1mon1a/slipper/releases/download/v0.1.0/slipper-0.1.0.tar.gz"
-  # PLACEHOLDER: replace with the sha256 of the v0.1.0 release asset once it is uploaded.
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "2864f2295a3ebdac34882dbb5cc27bf94504680bbe1b492cb73918db342720e1"
   license "MIT"
 
   depends_on macos: :monterey
