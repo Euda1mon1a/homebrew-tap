@@ -21,7 +21,7 @@ jobs:
           # strict audit discourages; the normal audit still runs.
           - formula: cac-sign
             audit: ""
-          - formula: webapp-to-dock
+          - formula: slipper
             audit: --strict
     steps:
       - uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478  # main, 2026-09-25
@@ -43,8 +43,8 @@ jobs:
             check: photogrep --version
           - formula: cac-sign
             check: cac-sign --help
-          - formula: webapp-to-dock
-            check: webapp-to-dock --version
+          - formula: slipper
+            check: slipper --version
     steps:
       - run: brew install euda1mon1a/tap/${{ matrix.formula }}
       - run: ${{ matrix.check }}
