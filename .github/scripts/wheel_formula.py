@@ -49,7 +49,10 @@ FORMULAS = {
         "class": "Marquetry",
         "desc": "Turn a flat logo into one-path-per-colour SVGs for multi-colour 3D printing",
         "license": "GPL-3.0-or-later",
-        "depends": [],
+        "depends": ['depends_on "maturin" => :build', 'depends_on "rust" => :build'],
+        # vtracer's wheel is a Rust dylib with no header room, so brew can't rewrite its install
+        # name; built here from the locked sdist with room to spare.
+        "from_source": ["vtracer"],
         "comment": """\
   # The exact wheels in marquetry's uv.lock for Python {py} on Apple silicon. Several are
   # compiled (numpy, scipy, scikit-learn, pillow, vtracer, PyQt6 and its bundled Qt), and their
@@ -168,11 +171,12 @@ def pick(pkg):
     return best[1]
 
 
+from_source = cfg.get("from_source", [])
 resources = []
 for pkgname, ver in sorted(wanted.items()):
     pkg = lock[pkgname]
     assert pkg["version"] == ver, (pkgname, pkg["version"], ver)
-    w = pick(pkg)
+    w = pkg["sdist"] if pkgname in from_source else pick(pkg)
     resources.append((pkgname, w["url"], w["hash"].split(":", 1)[1]))
 
 ctx = ssl.create_default_context(cafile=os.environ.get("SSL_CERT_FILE"))
@@ -185,6 +189,21 @@ res_blocks = "\n".join(f'''  resource "{n}" do
   end
 ''' for n, u, h in resources)
 depends = "".join(f"  {d}\n" for d in cfg["depends"])
+if from_source:
+    names = ", ".join(f'"{n}"' for n in from_source)
+    copy_block = (f"    from_source = [{names}]\n"
+                  "    resources.each do |r|\n"
+                  "      next if from_source.include?(r.name)\n\n"
+                  "      cp r.cached_download, wheels/File.basename(r.url)\n"
+                  "    end\n"
+                  '    ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"\n'
+                  "    from_source.each do |name|\n"
+                  "      resource(name).stage do\n"
+                  f'        system "maturin", "build", "--release", "--interpreter", "python{pyminor}", "--out", wheels\n'
+                  "      end\n"
+                  "    end\n")
+else:
+    copy_block = "    resources.each { |r| cp r.cached_download, wheels/File.basename(r.url) }\n"
 caveats = "\n" + cfg["caveats"] if cfg["caveats"] else ""
 
 formula = f'''class {cfg["class"]} < Formula
@@ -205,8 +224,7 @@ formula = f'''class {cfg["class"]} < Formula
     venv = virtualenv_create(libexec, "python{pyminor}", system_site_packages: false)
     wheels = buildpath/"wheels"
     wheels.mkpath
-    resources.each {{ |r| cp r.cached_download, wheels/File.basename(r.url) }}
-    cp cached_download, wheels/File.basename(stable.url)
+{copy_block}    cp cached_download, wheels/File.basename(stable.url)
     system "python{pyminor}", "-m", "pip", "--python=#{{venv.root}}/bin/python", "install",
            "--no-deps", "--no-index", "--no-compile", *wheels.children
 {cfg["link"]}  end

@@ -8,6 +8,8 @@ class Marquetry < Formula
   license "GPL-3.0-or-later"
 
   depends_on arch: :arm64
+  depends_on "maturin" => :build
+  depends_on "rust" => :build
   depends_on :macos
   depends_on "python@3.14"
 
@@ -71,15 +73,26 @@ class Marquetry < Formula
   end
 
   resource "vtracer" do
-    url "https://files.pythonhosted.org/packages/ca/c6/22c009b147de23fb8d1b18587ec303ab99fe4af423802185a2991a0a5bc4/vtracer-0.6.15-cp314-cp314-macosx_11_0_arm64.whl"
-    sha256 "a845d023d5704eb4edf017cb4e57cad2c7dec36d80160b7f6eab744ca8121e68"
+    url "https://files.pythonhosted.org/packages/e4/62/c3c23511ebe3d76dc679db0bb045dfd20ed3452bec12dcbbe8d655498a7d/vtracer-0.6.15.tar.gz"
+    sha256 "f7f39943d1fc8e9dc82f5360a40e941aaf4c9166d8df30c3f6a2da8cc21dfc52"
   end
 
   def install
     venv = virtualenv_create(libexec, "python3.14", system_site_packages: false)
     wheels = buildpath/"wheels"
     wheels.mkpath
-    resources.each { |r| cp r.cached_download, wheels/File.basename(r.url) }
+    from_source = ["vtracer"]
+    resources.each do |r|
+      next if from_source.include?(r.name)
+
+      cp r.cached_download, wheels/File.basename(r.url)
+    end
+    ENV.append "RUSTFLAGS", "-C link-arg=-Wl,-headerpad_max_install_names"
+    from_source.each do |name|
+      resource(name).stage do
+        system "maturin", "build", "--release", "--interpreter", "python3.14", "--out", wheels
+      end
+    end
     cp cached_download, wheels/File.basename(stable.url)
     system "python3.14", "-m", "pip", "--python=#{venv.root}/bin/python", "install",
            "--no-deps", "--no-index", "--no-compile", *wheels.children
