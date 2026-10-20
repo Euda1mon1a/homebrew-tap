@@ -35,6 +35,22 @@ class Slipper < Formula
     assert_path_exists contents/"Resources/AppIcon.icns"
     assert_match "APP_START_CMD='true'", (contents/"Resources/slipper.conf").read
 
+    # The app's executable hands Terminal a one-time shim; a stand-in `open` records it.
+    (testpath/"stub/open").write <<~SH
+      #!/bin/bash
+      printf '%s\\n' "$@" > "#{testpath}/open.log"
+    SH
+    (testpath/"stub/open").chmod 0755
+    with_env(PATH: "#{testpath}/stub:#{ENV.fetch("PATH")}", HOME: (testpath/"home").to_s) do
+      system contents/"MacOS/Test__App"
+    end
+    open_args = (testpath/"open.log").read.lines.map(&:chomp)
+    assert_equal %w[-a Terminal], open_args.first(2)
+    shim = Pathname(open_args.fetch(2))
+    assert_match %r{\A#{Regexp.escape((testpath/"home").to_s)}/Library/Caches/Slipper/[\w.-]+/launch\.command\z},
+                 shim.to_s
+    assert_match "exec /bin/bash '#{contents.realpath}/Resources/launcher.command'", shim.read
+
     # An app it did not create is left alone.
     (testpath/"Other.app/Contents").mkpath
     output = shell_output("#{bin}/slipper --name Other --port 8765 --start-cmd true " \
