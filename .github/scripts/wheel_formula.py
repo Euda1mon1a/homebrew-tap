@@ -75,10 +75,10 @@ FORMULAS = {
       im.save("ring.png")
     PY
     system bin/"marquetry", "coaster", "ring.png", "--palette", "C81E1E"
-    design = (testpath/"ring-coaster/ring-design.svg").read
+    design = (testpath/"ring.png-coaster/ring-design.svg").read
     assert_equal 1, design.scan("<path").length
-    assert_path_exists testpath/"ring-coaster/ring-coaster.svg"
-    system libexec/"bin/python", "-c", "from PyQt6 import QtSvg, QtWidgets"
+    assert_path_exists testpath/"ring.png-coaster/ring-coaster.svg"
+    system libexec/"bin/python", "-c", "from PyQt6 import QtSvg, QtWidgets; import marquetry_svg.gui"
   end
 """,
     },

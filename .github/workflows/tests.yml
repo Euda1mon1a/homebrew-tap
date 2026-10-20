@@ -26,6 +26,8 @@ jobs:
           # Like cac-sign: the exact wheels from object-healer's uv.lock, so the normal audit.
           - formula: object-healer
             audit: ""
+          - formula: marquetry
+            audit: ""
     steps:
       - uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478  # main, 2026-09-25
       - run: brew trust --tap euda1mon1a/tap
@@ -50,6 +52,8 @@ jobs:
             check: slipper --version
           - formula: object-healer
             check: object-healer --version
+          - formula: marquetry
+            check: marquetry --version
     steps:
       - run: brew install euda1mon1a/tap/${{ matrix.formula }}
       - run: ${{ matrix.check }}
