@@ -1,10 +1,10 @@
 class CacSign < Formula
   include Language::Python::Virtualenv
 
-  desc "Fill, CAC-sign and verify PDFs on a Mac, with Finder Quick Actions"
+  desc "Convert Word forms, detect fields, fill and CAC-sign PDFs"
   homepage "https://github.com/Euda1mon1a/cac-sign"
-  url "https://files.pythonhosted.org/packages/da/5b/cb7fa9f9657220b92bfef048765382e565e3d7cefdf2968b235ea543a212/cac_sign-0.1.0-py3-none-any.whl"
-  sha256 "b1f0e3784b64aec17d80b740142bc43fa8ffcfa2a68160125266142d7355e5aa"
+  url "https://github.com/Euda1mon1a/cac-sign/releases/download/v0.2.0/cac_sign-0.2.0-py3-none-any.whl"
+  sha256 "924d66fc236e191d1b4584e27f100f8cac7d3cbcdbc18778cd3f5728107160b8"
   license "MIT"
 
   depends_on arch: :arm64
@@ -155,6 +155,7 @@ class CacSign < Formula
     <<~EOS
       To add the Finder Quick Actions ("CAC Sign" and "CAC Sign…") and your details for forms, run:
         cac-sign --setup
+      DOCX conversion also needs LibreOffice installed in /Applications or on PATH.
     EOS
   end
 
@@ -162,6 +163,6 @@ class CacSign < Formula
     assert_match "usage: cac-sign", shell_output("#{bin}/cac-sign --help")
     assert_match "No signatures recorded yet", shell_output("#{bin}/cac-sign --history")
     system libexec/"bin/python", "-c",
-           "import cac_sign_app as a; a._modules(); import cac_sign_editor, cac_sign_finder, pdf_readers, Quartz, Security"
+           "import cac_sign_app as a; a._modules(); import cac_sign_editor, cac_sign_finder, pdf_readers, document_inputs, field_detection, Quartz, Security"
   end
 end

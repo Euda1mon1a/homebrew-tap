@@ -5,8 +5,10 @@ Usage: python3 .github/scripts/cac_sign_formula.py <cac-sign checkout at the rel
 Needs uv and the `packaging` module. Run it for each cac-sign release; it is not in the weekly bump.
 The resource set is `uv export --frozen` filtered by markers for CPython on macOS arm64; each
 resource is the lock's wheel for that Python (cpXY, then abi3, then pure), with the lock's sha256.
+The main wheel comes from PyPI by default. Set CAC_SIGN_WHEEL_SOURCE=github to use the
+wheel attached to the matching GitHub release, with its downloaded bytes hashed locally.
 """
-import json, re, subprocess, sys, tomllib, urllib.request, ssl, os
+import hashlib, json, re, subprocess, sys, tomllib, urllib.request, ssl, os
 from packaging.markers import Marker
 
 repo, version, out = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -65,8 +67,21 @@ for name, ver in sorted(wanted.items()):
     resources.append((name, w["url"], w["hash"].split(":", 1)[1]))
 
 ctx = ssl.create_default_context(cafile=os.environ.get("SSL_CERT_FILE"))
-meta = json.load(urllib.request.urlopen(f"https://pypi.org/pypi/cac-sign/{version}/json", context=ctx))
-main = next(u for u in meta["urls"] if u["packagetype"] == "bdist_wheel")
+source = os.environ.get("CAC_SIGN_WHEEL_SOURCE", "pypi")
+if source == "github":
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise SystemExit("GitHub wheel source requires a numeric release version")
+    filename = f"cac_sign-{version}-py3-none-any.whl"
+    url = f"https://github.com/Euda1mon1a/cac-sign/releases/download/v{version}/{filename}"
+    with urllib.request.urlopen(url, context=ctx, timeout=60) as response:
+        checksum = hashlib.sha256(response.read()).hexdigest()
+    main = {"url": url, "filename": filename, "digests": {"sha256": checksum}}
+elif source == "pypi":
+    with urllib.request.urlopen(f"https://pypi.org/pypi/cac-sign/{version}/json", context=ctx, timeout=60) as response:
+        meta = json.load(response)
+    main = next(u for u in meta["urls"] if u["packagetype"] == "bdist_wheel")
+else:
+    raise SystemExit("CAC_SIGN_WHEEL_SOURCE must be pypi or github")
 
 res_blocks = "\n".join(f'''  resource "{n}" do
     url "{u}"
@@ -77,7 +92,7 @@ res_blocks = "\n".join(f'''  resource "{n}" do
 formula = f'''class CacSign < Formula
   include Language::Python::Virtualenv
 
-  desc "Fill, CAC-sign and verify PDFs on a Mac, with Finder Quick Actions"
+  desc "Convert Word forms, detect fields, fill and CAC-sign PDFs"
   homepage "https://github.com/Euda1mon1a/cac-sign"
   url "{main["url"]}"
   sha256 "{main["digests"]["sha256"]}"
@@ -107,6 +122,7 @@ formula = f'''class CacSign < Formula
     <<~EOS
       To add the Finder Quick Actions ("CAC Sign" and "CAC Sign…") and your details for forms, run:
         cac-sign --setup
+      DOCX conversion also needs LibreOffice installed in /Applications or on PATH.
     EOS
   end
 
@@ -114,9 +130,9 @@ formula = f'''class CacSign < Formula
     assert_match "usage: cac-sign", shell_output("#{{bin}}/cac-sign --help")
     assert_match "No signatures recorded yet", shell_output("#{{bin}}/cac-sign --history")
     system libexec/"bin/python", "-c",
-           "import cac_sign_app as a; a._modules(); import cac_sign_editor, cac_sign_finder, pdf_readers, Quartz, Security"
+           "import cac_sign_app as a; a._modules(); import cac_sign_editor, cac_sign_finder, pdf_readers, document_inputs, field_detection, Quartz, Security"
   end
 end
 '''
 open(out, "w").write(formula)
-print(f"{len(resources)} resources; main {main['filename']}")
+print(f"{len(resources)} resources; main {main['filename']} from {source}")
